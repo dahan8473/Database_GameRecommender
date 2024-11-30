@@ -23,6 +23,24 @@ connection.connect((err) => {
   console.log("Connected to MySQL as ID", connection.threadId);
 });
 
+async function isAdmin(user_id) {
+  return new Promise((resolve, reject) => {
+    const query = "SELECT * FROM Admin";
+
+    connection.query(query, (err, results) => {
+      if (err) {
+        console.error("Error checking admin status:", err.stack);
+        reject(err);
+        return;
+      }
+
+      // Check if user_id matches any admin_id in results
+      const isAdminUser = results.some((admin) => admin.admin_id === user_id);
+      resolve(isAdminUser);
+    });
+  });
+}
+
 app.use(express.static(path.join(__dirname, "../client")));
 
 app.get("/", (req, res) => {
@@ -131,6 +149,70 @@ app.put("/users/:userId", (req, res) => {
   });
 });
 
+// endpoint to show all user's activity, shows a summary of a user's ratings and wishlist contributions
+app.get("/users/:userId/activity", (req, res) => {
+  const userId = req.params.userId;
+
+  // Check if user exists
+  const checkUserQuery = "SELECT * FROM User WHERE user_id = ?";
+  connection.query(checkUserQuery, [userId], (err, userResults) => {
+    if (err) {
+      console.error("Error checking user:", err.stack);
+      return res
+        .status(500)
+        .send(`Error fetching user activity: ${err.message}`);
+    }
+
+    if (userResults.length === 0) {
+      return res.status(404).send("User not found");
+    }
+
+    // Get ratings summary
+    const ratingsQuery = `
+      SELECT 
+        COUNT(*) as total_ratings,
+        AVG(score) as average_rating
+      FROM Rating 
+      WHERE user_id = ?`;
+
+    // Get wishlist count
+    const wishlistQuery = `
+      SELECT COUNT(*) as total_wishlist
+      FROM Wishlist 
+      WHERE user_id = ?`;
+
+    // Execute both queries in parallel
+    Promise.all([
+      new Promise((resolve, reject) => {
+        connection.query(ratingsQuery, [userId], (err, ratingResults) => {
+          if (err) reject(err);
+          else resolve(ratingResults[0]);
+        });
+      }),
+      new Promise((resolve, reject) => {
+        connection.query(wishlistQuery, [userId], (err, wishlistResults) => {
+          if (err) reject(err);
+          else resolve(wishlistResults[0]);
+        });
+      }),
+    ])
+      .then(([ratingStats, wishlistStats]) => {
+        const activitySummary = {
+          user_id: userId,
+          username: userResults[0].username,
+          total_ratings: ratingStats.total_ratings || 0,
+          average_rating: ratingStats.average_rating || 0,
+          total_wishlist_items: wishlistStats.total_wishlist || 0,
+        };
+        res.status(200).json(activitySummary);
+      })
+      .catch((err) => {
+        console.error("Error fetching activity:", err);
+        res.status(500).send(`Error fetching activity: ${err.message}`);
+      });
+  });
+});
+
 // endpoint to retrieve a user's wishlist
 app.get("/wishlist/:userId", (req, res) => {
   const userId = req.params.userId;
@@ -194,6 +276,93 @@ app.post("/wishlist/:userId", (req, res) => {
       );
     });
   });
+});
+
+// endpoint to search for a video game
+app.get("/videogame/:id", (req, res) => {
+  const { id } = req.params;
+  const query = "SELECT * FROM VideoGame WHERE game_id = ?";
+  connection.query(query, [id], (err, results) => {
+    if (err) {
+      console.error("Error while fetching the game:", err);
+      res.status(500).send("Error while fetching the game");
+    } else if (results.length === 0) {
+      res.status(404).send("Game not found");
+    } else {
+      res.status(200).json(results[0]); // Return the first matching result
+    }
+  });
+});
+
+// endpoint to get games with rating >= specified score
+app.get("/videogame/byrating/:score", (req, res) => {
+  const { score } = req.params;
+  const query = `
+    SELECT 
+      v.game_id,
+      v.title,
+      v.platform,
+      v.publisher,
+      v.release_date,
+      AVG(r.score) as average_rating,
+      COUNT(r.rating_id) as number_of_ratings
+    FROM VideoGame v
+    INNER JOIN Rating r ON v.game_id = r.game_id
+    GROUP BY v.game_id, v.title, v.platform, v.publisher, v.release_date
+    HAVING AVG(r.score) >= ?
+    ORDER BY average_rating DESC`;
+
+  connection.query(query, [score], (err, results) => {
+    if (err) {
+      console.error("Error fetching games by rating:", err);
+      res.status(500).send("Error fetching games by rating");
+    } else if (results.length === 0) {
+      res.status(404).send("No games found with rating >= " + score);
+    } else {
+      res.status(200).json(results);
+    }
+  });
+});
+
+// admin endpoint to delete a user
+app.delete("/admin/users/:userId", (req, res) => {
+  const { userId } = req.params;
+  const { admin_id } = req.body;
+
+  // check if user is an admin
+  isAdmin(admin_id)
+    .then((isAdminUser) => {
+      if (!isAdminUser) {
+        return res.status(401).send("Unauthorized");
+      }
+
+      // check if user exists
+      const checkUserQuery = "SELECT * FROM User WHERE user_id = ?";
+      connection.query(checkUserQuery, [userId], (err, results) => {
+        if (err) {
+          console.error("Error checking user:", err.stack);
+          return res.status(500).send(`Error deleting user: ${err.message}`);
+        }
+
+        if (results.length === 0) {
+          return res.status(404).send("User not found");
+        }
+
+        // delete user
+        const deleteQuery = "DELETE FROM User WHERE user_id = ?";
+        connection.query(deleteQuery, [userId], (err, results) => {
+          if (err) {
+            console.error("Error deleting user:", err.stack);
+            return res.status(500).send(`Error deleting user: ${err.message}`);
+          }
+          res.status(200).send("User deleted successfully");
+        });
+      });
+    })
+    .catch((err) => {
+      console.error("Error checking admin status:", err);
+      res.status(500).send("Error checking admin status");
+    });
 });
 
 app.get("*", (req, res) => {
