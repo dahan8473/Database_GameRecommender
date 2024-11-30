@@ -2,6 +2,7 @@ const mysql = require("mysql2");
 const cors = require("cors");
 const express = require("express");
 const path = require("path");
+const { info } = require("console");
 const app = express();
 app.use(cors());
 app.use(express.json());
@@ -127,6 +128,71 @@ app.put("/users/:userId", (req, res) => {
     } else {
       res.status(400).send("No fields to update provided");
     }
+  });
+});
+
+// endpoint to retrieve a user's wishlist
+app.get("/wishlist/:userId", (req, res) => {
+  const userId = req.params.userId;
+  const query = "SELECT * FROM Wishlist WHERE user_id = ?";
+  connection.query(query, [userId], (err, results) => {
+    if (err) {
+      console.error("Error fetching wishlist:", err.stack);
+      res.status(500).send("Error fetching wishlist");
+      return;
+    }
+    res.status(200).json(results);
+  });
+});
+
+// endpoint to add a game to a user's wishlist
+app.post("/wishlist/:userId", (req, res) => {
+  const userId = req.params.userId;
+  const { game_id, comment } = req.body; // Extract comment from request body
+
+  // First verify user exists
+  const checkUserQuery = "SELECT * FROM User WHERE user_id = ?";
+  connection.query(checkUserQuery, [userId], (err, results) => {
+    if (err) {
+      console.error("Error checking user:", err.stack);
+      return res.status(500).send(`Error adding to wishlist: ${err.message}`);
+    }
+
+    if (results.length === 0) {
+      return res.status(404).send("User not found");
+    }
+
+    // Check if game already in wishlist
+    const checkWishlistQuery =
+      "SELECT * FROM Wishlist WHERE user_id = ? AND game_id = ?";
+    connection.query(checkWishlistQuery, [userId, game_id], (err, results) => {
+      if (err) {
+        console.error("Error checking wishlist:", err.stack);
+        return res.status(500).send(`Error checking wishlist: ${err.message}`);
+      }
+
+      if (results.length > 0) {
+        return res.status(409).send("Game already in wishlist");
+      }
+
+      // Add to wishlist with comment
+      const insertQuery =
+        "INSERT INTO Wishlist (user_id, game_id, comments) VALUES (?, ?, ?)";
+      connection.query(
+        insertQuery,
+        [userId, game_id, comment || null],
+        (err, results) => {
+          if (err) {
+            console.error("Error adding to wishlist:", err.stack);
+            return res
+              .status(500)
+              .send(`Error adding to wishlist: ${err.message}`);
+          }
+
+          res.status(201).send("Game added to wishlist successfully");
+        }
+      );
+    });
   });
 });
 
