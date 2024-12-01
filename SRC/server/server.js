@@ -2,7 +2,6 @@ const mysql = require("mysql2");
 const cors = require("cors");
 const express = require("express");
 const path = require("path");
-const { info } = require("console");
 const app = express();
 app.use(cors());
 app.use(express.json());
@@ -55,15 +54,16 @@ app.post("/register", (req, res) => {
     .slice(0, 19)
     .replace("T", " ");
 
-  const countQuery = "SELECT COUNT(*) AS count FROM User";
-  connection.query(countQuery, (err, results) => {
+  // Get the maximum user_id instead of counting rows
+  const maxIdQuery = "SELECT MAX(user_id) AS max_id FROM User";
+  connection.query(maxIdQuery, (err, results) => {
     if (err) {
-      console.error("Error counting users:", err.stack);
+      console.error("Error getting max user ID:", err.stack);
       res.status(500).send(`Error registering user: ${err.message}`);
       return;
     }
 
-    const userId = results[0].count + 1;
+    const userId = (results[0].max_id || 0) + 1;
 
     const insertQuery =
       "INSERT INTO User (user_id, username, registration_date, age, password) VALUES (?, ?, ?, ?, ?)";
@@ -79,6 +79,44 @@ app.post("/register", (req, res) => {
         res.status(201).send("User registered successfully");
       }
     );
+  });
+});
+
+// endpoint to log in an existing user
+app.post("/login", (req, res) => {
+  const { username, password } = req.body;
+
+  // Check if username and password are provided
+  if (!username || !password) {
+    return res
+      .status(400)
+      .json({ success: false, message: "Missing credentials" });
+  }
+
+  // Query the database
+  const query = "SELECT user_id FROM user WHERE username = ? AND password = ?";
+  connection.query(query, [username, password], (err, results) => {
+    if (err) {
+      console.error("Error querying database:", err);
+      return res
+        .status(500)
+        .json({ success: false, message: "Internal server error" });
+    }
+
+    if (results.length > 0) {
+      // User authenticated
+      res.json({
+        success: true,
+        message: "Login successful",
+        user_id: results[0].user_id,
+      });
+    } else {
+      // Invalid credentials
+      res.status(401).json({
+        success: false,
+        message: "Invalid username or password",
+      });
+    }
   });
 });
 
@@ -278,8 +316,8 @@ app.post("/wishlist/:userId", (req, res) => {
   });
 });
 
-// endpoint to search for a video game
-app.get("/videogame/:id", (req, res) => {
+// endpoint to find a videogame based on id
+app.get("/videogame/search/:id", (req, res) => {
   const { id } = req.params;
   const query = "SELECT * FROM VideoGame WHERE game_id = ?";
   connection.query(query, [id], (err, results) => {
@@ -291,6 +329,69 @@ app.get("/videogame/:id", (req, res) => {
     } else {
       res.status(200).json(results[0]); // Return the first matching result
     }
+  });
+});
+
+// endpoint to retrieve all video games
+app.get("/videogame/all", (req, res) => {
+  const query = `
+    SELECT 
+      v.game_id,
+      v.title,
+      v.platform,
+      v.publisher,
+      v.release_date,
+      AVG(r.score) as average_rating,
+      COUNT(r.rating_id) as number_of_ratings
+    FROM VideoGame v
+    LEFT JOIN Rating r ON v.game_id = r.game_id
+    GROUP BY v.game_id, v.title, v.platform, v.publisher, v.release_date
+    ORDER BY v.title`;
+
+  connection.query(query, (err, results) => {
+    if (err) {
+      console.error("Error fetching all games:", err);
+      return res.status(500).send("Error fetching all games");
+    }
+    res.status(200).json(results);
+  });
+});
+
+// endpoint to get most popular games
+app.get("/videogame/popular", (req, res) => {
+  // number of results to return
+  const { n } = req.body;
+
+  // Validate n
+  const limit = n || 10; // Default to 10 if not specified
+
+  const query = `
+    SELECT 
+      v.game_id,
+      v.title,
+      v.platform,
+      v.publisher,
+      v.release_date,
+      AVG(r.score) as average_rating,
+      COUNT(r.rating_id) as number_of_ratings
+    FROM VideoGame v
+    LEFT JOIN Rating r ON v.game_id = r.game_id
+    GROUP BY v.game_id, v.title, v.platform, v.publisher, v.release_date
+    HAVING number_of_ratings > 0
+    ORDER BY average_rating DESC, number_of_ratings DESC
+    LIMIT ?`;
+
+  connection.query(query, [limit], (err, results) => {
+    if (err) {
+      console.error("Error fetching popular games:", err);
+      return res.status(500).send("Error fetching popular games");
+    }
+
+    if (results.length === 0) {
+      return res.status(404).send("No games found");
+    }
+
+    res.status(200).json(results);
   });
 });
 
