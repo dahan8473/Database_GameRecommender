@@ -1,5 +1,7 @@
 :root {
   color-scheme: dark;
+  --toastify-color-success: #646cff;
+  --toastify-color-error: #dc3545;
 }
 
 #root {

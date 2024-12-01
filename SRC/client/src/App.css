@@ -231,3 +231,61 @@ header h1 {
   border-radius: 4px;
   font-style: italic;
 }
+
+.wishlist-item {
+  position: relative; /* Add this to position the delete button */
+}
+
+.delete-button {
+  position: absolute;
+  bottom: 1rem;
+  right: 1rem;
+  width: auto;
+  padding: 0.5rem;
+  background: transparent;
+  color: #dc3545;
+  border: none;
+  border-radius: 50%;
+  font-size: 1.1rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.delete-button:hover {
+  color: #fff;
+  background: #dc3545;
+  transform: translateY(-1px);
+}
+
+.delete-button:active {
+  transform: translateY(0);
+}
+
+.search-container {
+  margin-bottom: 2rem;
+  width: 100%;
+}
+
+.search-input {
+  width: 100%;
+  padding: 0.75rem;
+  background: #333;
+  border: 1px solid #444;
+  border-radius: 4px;
+  color: #fff;
+  font-size: 1rem;
+  transition: all 0.2s ease;
+}
+
+.search-input:focus {
+  outline: none;
+  border-color: #646cff;
+  box-shadow: 0 0 0 2px rgba(100, 108, 255, 0.2);
+}
+
+.search-input::placeholder {
+  color: #888;
+}

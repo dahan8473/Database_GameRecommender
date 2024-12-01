@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import axios from "axios";
+import toast from "react-hot-toast";
 
 export function Wishlist({ userId }) {
   const [wishlist, setWishlist] = useState([]);
@@ -41,6 +42,17 @@ export function Wishlist({ userId }) {
     }
   };
 
+  const handleDeleteFromWishlist = async (gameId) => {
+    try {
+      await axios.delete(`http://localhost:3000/wishlist/${userId}/${gameId}`);
+      setWishlist(wishlist.filter((item) => item.game_id !== gameId));
+      toast.success("Game removed from wishlist");
+    } catch (err) {
+      setError("Failed to remove game from wishlist");
+      toast.error("Failed to remove game from wishlist");
+    }
+  };
+
   useEffect(() => {
     fetchWishlist();
   }, [userId]);
@@ -64,6 +76,13 @@ export function Wishlist({ userId }) {
                   ).toLocaleDateString()}
                 </p>
                 {item.comments && <p>Notes: {item.comments}</p>}
+                <button
+                  onClick={() => handleDeleteFromWishlist(item.game_id)}
+                  className="delete-button"
+                  title="Remove from Wishlist"
+                >
+                  <i className="fas fa-trash"></i>
+                </button>
               </>
             ) : (
               <p>Loading game details...</p>

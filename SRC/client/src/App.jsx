@@ -6,6 +6,8 @@ import { GamesList } from "./components/gameslist";
 import { Wishlist } from "./components/wishlist";
 import { Profile } from "./components/profile";
 import { Recommendations } from "./components/recommendations";
+import { Toaster } from "react-hot-toast";
+
 import "./App.css";
 
 function App() {
@@ -31,6 +33,7 @@ function App() {
 
   return (
     <div className="app-container">
+      <Toaster position="bottom-right" />
       <header>
         <h1>Video Game Recommender</h1>
         {isLoggedIn && (

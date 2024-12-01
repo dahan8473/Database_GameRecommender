@@ -1,11 +1,11 @@
 import { useState, useEffect } from "react";
 import axios from "axios";
+import toast from "react-hot-toast";
 
 export function Recommendations({ userId }) {
   const [recommendations, setRecommendations] = useState([]);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
-  const [games, setGames] = useState({});
 
   const fetchStoredRecommendations = async () => {
     try {
@@ -32,6 +32,20 @@ export function Recommendations({ userId }) {
     } catch (err) {
       setError("Failed to generate new recommendations");
       setLoading(false);
+    }
+  };
+
+  const handleAddToWishlist = async (gameId) => {
+    try {
+      await axios.post(`http://localhost:3000/wishlist/${userId}`, {
+        game_id: gameId,
+      });
+      setRecommendations(
+        recommendations.filter((rec) => rec.game_id !== gameId)
+      );
+      toast.success("Game added to wishlist");
+    } catch (err) {
+      toast.error("Failed to add game to wishlist");
     }
   };
 
@@ -66,6 +80,9 @@ export function Recommendations({ userId }) {
             {rec.reason && (
               <p className="recommendation-reason">Why: {rec.reason}</p>
             )}
+            <button onClick={() => handleAddToWishlist(rec.game_id)}>
+              Add to Wishlist
+            </button>
           </div>
         ))}
       </div>

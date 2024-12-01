@@ -324,6 +324,23 @@ app.post("/wishlist/:userId", (req, res) => {
   });
 });
 
+// endpoint to delete a game from user's wishlist
+app.delete("/wishlist/:userId/:gameId", (req, res) => {
+  const { userId, gameId } = req.params;
+
+  const query = "DELETE FROM Wishlist WHERE user_id = ? AND game_id = ?";
+  connection.query(query, [userId, gameId], (err, results) => {
+    if (err) {
+      console.error("Error deleting from wishlist:", err);
+      return res.status(500).send("Error deleting from wishlist");
+    }
+    if (results.affectedRows === 0) {
+      return res.status(404).send("Game not found in wishlist");
+    }
+    res.status(200).send("Game removed from wishlist");
+  });
+});
+
 // endpoint to find a videogame based on id
 app.get("/videogame/search/:id", (req, res) => {
   const { id } = req.params;
@@ -403,6 +420,43 @@ app.get("/videogame/popular", (req, res) => {
   });
 });
 
+// endpoint to search video games
+app.get("/videogame/search", (req, res) => {
+  const { query } = req.query;
+
+  const searchQuery = `
+    SELECT 
+      v.game_id,
+      v.title,
+      v.platform,
+      v.publisher,
+      v.release_date,
+      AVG(r.score) as average_rating,
+      COUNT(r.rating_id) as number_of_ratings
+    FROM VideoGame v
+    LEFT JOIN Rating r ON v.game_id = r.game_id
+    WHERE 
+      v.title LIKE ? OR
+      v.platform LIKE ? OR
+      v.publisher LIKE ?
+    GROUP BY v.game_id, v.title, v.platform, v.publisher, v.release_date
+    ORDER BY v.title`;
+
+  const searchTerm = `%${query}%`;
+
+  connection.query(
+    searchQuery,
+    [searchTerm, searchTerm, searchTerm],
+    (err, results) => {
+      if (err) {
+        console.error("Error searching games:", err);
+        return res.status(500).send("Error searching games");
+      }
+      res.status(200).json(results);
+    }
+  );
+});
+
 // endpoint to get games with rating >= specified score
 app.get("/videogame/byrating/:score", (req, res) => {
   const { score } = req.params;
@@ -474,7 +528,7 @@ app.delete("/admin/users/:userId", (req, res) => {
     });
 });
 
-// Get stored recommendations
+// get stored recommendations
 app.get("/recommendations/:userId/stored", async (req, res) => {
   const userId = req.params.userId;
 
@@ -501,7 +555,7 @@ app.get("/recommendations/:userId/stored", async (req, res) => {
   }
 });
 
-// Generate new recommendations
+// generate new recommendations
 app.post("/recommendations/:userId/generate", async (req, res) => {
   const userId = req.params.userId;
 
@@ -558,8 +612,8 @@ app.post("/recommendations/:userId/generate", async (req, res) => {
       
       Return EXACTLY 5 recommendations in this JSON format, nothing else:
       [
-        {"title": "Exact Game Title", "reason": "Short reason for recommendation"},
-        {"title": "Exact Game Title", "reason": "Short reason for recommendation"}
+        {"title": "Exact Game Title", "reason": "Short reason for recommendation in relation to games within user wishlist"},
+        {"title": "Exact Game Title", "reason": "Short reason for recommendation in relation to games within user wishlist"}
       ]`;
 
     const completion = await openrouter.chat.completions.create({
