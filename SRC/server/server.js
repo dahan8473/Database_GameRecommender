@@ -564,7 +564,7 @@ app.post("/recommendations/:userId/generate", async (req, res) => {
   const userId = req.params.userId;
 
   try {
-    // Get user's wishlist with genres and ratings
+    // get user's wishlist with genres and ratings
     const wishlistQuery = `
       SELECT v.*, AVG(r.score) as average_rating,
       COUNT(r.rating_id) as rating_count
@@ -574,7 +574,7 @@ app.post("/recommendations/:userId/generate", async (req, res) => {
       WHERE w.user_id = ?
       GROUP BY v.game_id`;
 
-    // Get all available games to recommend from
+    // grabs 20 random games (token limitation doesn't allow passing all)
     const allGamesQuery = `
       SELECT v.*, 
       AVG(r.score) as average_rating,
