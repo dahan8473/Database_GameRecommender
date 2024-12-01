@@ -2,6 +2,11 @@ import { useState, useEffect } from "react";
 import axios from "axios";
 import toast from "react-hot-toast";
 
+const ratingFormStars = [1, 2, 3, 4, 5].map((num) => ({
+  value: num,
+  label: `${num} ${num === 1 ? "Star" : "Stars"}`,
+}));
+
 export function GamesList({ userId, onAddToWishlist }) {
   const [popularGames, setPopularGames] = useState([]);
   const [allGames, setAllGames] = useState([]);
@@ -9,18 +14,23 @@ export function GamesList({ userId, onAddToWishlist }) {
   const [searchTerm, setSearchTerm] = useState("");
   const [error, setError] = useState("");
   const [isSearching, setIsSearching] = useState(false);
+  const [activeGame, setActiveGame] = useState({
+    id: null,
+    showRatingForm: false,
+    showRatings: false,
+    ratings: [],
+    ratingScore: 0,
+    ratingReview: "",
+  });
 
   useEffect(() => {
     const fetchGames = async () => {
       try {
-        // Fetch both popular and all games in parallel
         const [popularResponse, allResponse] = await Promise.all([
           axios.get("http://localhost:3000/videogame/popular"),
           axios.get("http://localhost:3000/videogame/all"),
         ]);
-
         setPopularGames(popularResponse.data);
-        // Take only first 20 games
         setAllGames(allResponse.data.slice(0, 20));
       } catch (err) {
         setError("Failed to fetch games");
@@ -68,27 +78,186 @@ export function GamesList({ userId, onAddToWishlist }) {
     }
   };
 
+  const handleRateGame = async (gameId, score, review) => {
+    try {
+      await axios.post(`http://localhost:3000/rating/${userId}/${gameId}`, {
+        score,
+        review,
+      });
+      toast.success("Rating submitted successfully");
+      setActiveGame((prev) => ({
+        ...prev,
+        showRatingForm: false,
+        ratingScore: 0,
+        ratingReview: "",
+      }));
+    } catch (err) {
+      toast.error("Failed to submit rating");
+    }
+  };
+
+  const handleViewRatings = async (gameId) => {
+    try {
+      const response = await axios.get(
+        `http://localhost:3000/ratings/game/${gameId}`
+      );
+      setActiveGame((prev) => ({
+        ...prev,
+        id: gameId,
+        showRatings: true,
+        ratings: response.data,
+      }));
+    } catch (err) {
+      toast.error("Failed to fetch ratings");
+    }
+  };
+
   const formatRating = (rating) => {
     if (!rating) return "No ratings";
     const numRating = parseFloat(rating);
     return isNaN(numRating) ? "No ratings" : numRating.toFixed(1);
   };
 
-  const GameGrid = ({ games, title }) => (
-    <div className="game-section">
-      <h2>{title}</h2>
-      <div className="games-grid">
-        {games.map((game) => (
-          <div key={game.game_id} className="game-card">
-            <h3>{game.title}</h3>
-            <p>Platform: {game.platform}</p>
-            <p>Publisher: {game.publisher}</p>
-            <p>Rating: {formatRating(game.average_rating)}</p>
-            <button onClick={() => handleAddToWishlist(game.game_id)}>
-              Add to Wishlist
-            </button>
-          </div>
-        ))}
+  const RatingForm = ({ gameId, onClose }) => {
+    const [localState, setLocalState] = useState({
+      score: activeGame.ratingScore,
+      review: activeGame.ratingReview,
+    });
+
+    const handleSubmit = () => {
+      handleRateGame(gameId, localState.score, localState.review);
+    };
+
+    const handleReviewChange = (e) => {
+      setLocalState((prev) => ({
+        ...prev,
+        review: e.target.value,
+      }));
+    };
+
+    const handleScoreChange = (e) => {
+      setLocalState((prev) => ({
+        ...prev,
+        score: Number(e.target.value),
+      }));
+    };
+
+    return (
+      <div className="rating-form">
+        <select value={localState.score} onChange={handleScoreChange}>
+          <option value="0">Select Rating</option>
+          {ratingFormStars.map(({ value, label }) => (
+            <option key={value} value={value}>
+              {label}
+            </option>
+          ))}
+        </select>
+        <textarea
+          placeholder="Write a review (optional)"
+          value={localState.review}
+          onChange={handleReviewChange}
+        />
+        <div className="button-row">
+          <button onClick={handleSubmit} disabled={!localState.score}>
+            <i className="fa-solid fa-check"></i>
+            Submit
+          </button>
+          <button onClick={onClose}>
+            <i className="fa-solid fa-times"></i>
+            Cancel
+          </button>
+        </div>
+      </div>
+    );
+  };
+
+  // Game card component
+  const GameCard = ({ game }) => (
+    <div className="game-card">
+      <h3>{game.title}</h3>
+      <p>Platform: {game.platform}</p>
+      <p>Publisher: {game.publisher}</p>
+      <p>Rating: {formatRating(game.average_rating)}</p>
+
+      {activeGame.showRatingForm && activeGame.id === game.game_id && (
+        <RatingForm
+          gameId={game.game_id}
+          onClose={() =>
+            setActiveGame((prev) => ({
+              ...prev,
+              showRatingForm: false,
+              ratingScore: 0,
+              ratingReview: "",
+            }))
+          }
+        />
+      )}
+
+      {activeGame.showRatings && activeGame.id === game.game_id && (
+        <div className="ratings-list">
+          <h4>User Ratings</h4>
+          {Array.isArray(activeGame.ratings) &&
+          activeGame.ratings.length > 0 ? (
+            activeGame.ratings.map((rating) => (
+              <div key={rating.rating_id} className="rating-item">
+                <div className="rating-header">
+                  <span className="rating-score">
+                    <i className="fa-solid fa-star"></i> {rating.score}/5
+                  </span>
+                  <span className="rating-user">
+                    <i className="fa-solid fa-user"></i> {rating.username}
+                  </span>
+                  <span className="rating-date">
+                    {new Date(rating.rating_date).toLocaleDateString()}
+                  </span>
+                </div>
+                {rating.review && (
+                  <p className="rating-review">"{rating.review}"</p>
+                )}
+              </div>
+            ))
+          ) : (
+            <p className="no-ratings">No ratings yet</p>
+          )}
+          <button
+            onClick={() =>
+              setActiveGame((prev) => ({ ...prev, showRatings: false }))
+            }
+            className="close-ratings-button"
+          >
+            Close Ratings
+          </button>
+        </div>
+      )}
+
+      <div className="button-row">
+        <button
+          onClick={() => handleAddToWishlist(game.game_id)}
+          title="Add to Wishlist"
+        >
+          <i className="fa-solid fa-heart"></i>
+        </button>
+        <button
+          onClick={() =>
+            setActiveGame({
+              id: game.game_id,
+              showRatingForm: true,
+              showRatings: false,
+              ratings: [],
+              ratingScore: 0,
+              ratingReview: "",
+            })
+          }
+          title="Rate Game"
+        >
+          <i className="fa-solid fa-star"></i>
+        </button>
+        <button
+          onClick={() => handleViewRatings(game.game_id)}
+          title="View Ratings"
+        >
+          <i className="fa-solid fa-comments"></i>
+        </button>
       </div>
     </div>
   );
@@ -110,16 +279,35 @@ export function GamesList({ userId, onAddToWishlist }) {
       {isSearching ? (
         <div>Searching...</div>
       ) : searchTerm ? (
-        <GameGrid
-          games={searchResults}
-          title={`Search Results${
-            searchResults.length ? ` (${searchResults.length})` : ""
-          }`}
-        />
+        <div className="game-section">
+          <h2>
+            Search Results{" "}
+            {searchResults.length ? `(${searchResults.length})` : ""}
+          </h2>
+          <div className="games-grid">
+            {searchResults.map((game) => (
+              <GameCard key={game.game_id} game={game} />
+            ))}
+          </div>
+        </div>
       ) : (
         <>
-          <GameGrid games={popularGames} title="Popular Games" />
-          <GameGrid games={allGames} title="All Games" />
+          <div className="game-section">
+            <h2>Popular Games</h2>
+            <div className="games-grid">
+              {popularGames.map((game) => (
+                <GameCard key={game.game_id} game={game} />
+              ))}
+            </div>
+          </div>
+          <div className="game-section">
+            <h2>Games</h2>
+            <div className="games-grid">
+              {allGames.map((game) => (
+                <GameCard key={game.game_id} game={game} />
+              ))}
+            </div>
+          </div>
         </>
       )}
     </div>

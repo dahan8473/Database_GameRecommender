@@ -6,15 +6,21 @@ export function Recommendations({ userId }) {
   const [recommendations, setRecommendations] = useState([]);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [minRating, setMinRating] = useState(0);
 
-  const fetchStoredRecommendations = async () => {
+  const fetchStoredRecommendations = async (rating = minRating) => {
     try {
+      setLoading(true);
       const response = await axios.get(
-        `http://localhost:3000/recommendations/${userId}/stored`
+        `http://localhost:3000/recommendations/${userId}/stored`,
+        {
+          params: { minRating: rating },
+        }
       );
       setRecommendations(response.data);
       setLoading(false);
     } catch (err) {
+      console.error("Fetch error:", err);
       setError("Failed to fetch stored recommendations");
       setLoading(false);
     }
@@ -49,6 +55,12 @@ export function Recommendations({ userId }) {
     }
   };
 
+  const formatRating = (rating) => {
+    if (!rating) return "No ratings";
+    const numRating = parseFloat(rating);
+    return isNaN(numRating) ? "No ratings" : numRating.toFixed(1);
+  };
+
   useEffect(() => {
     fetchStoredRecommendations();
   }, [userId]);
@@ -59,32 +71,53 @@ export function Recommendations({ userId }) {
     <div className="recommendations-section">
       <div className="recommendations-header">
         <h2>AI Recommended Games</h2>
-        <button
-          onClick={generateNewRecommendations}
-          className="generate-button"
-          disabled={loading}
-        >
-          Generate New Recommendations
-        </button>
+        <div className="filter-controls">
+          <label>
+            Minimum Rating:
+            <select
+              value={minRating}
+              onChange={(e) => {
+                setMinRating(Number(e.target.value));
+                fetchStoredRecommendations(Number(e.target.value));
+              }}
+            >
+              <option value="0">All Ratings</option>
+              <option value="1">1+</option>
+              <option value="2">2+</option>
+              <option value="3">3+</option>
+              <option value="4">4+</option>
+              <option value="5">5 Only</option>
+            </select>
+          </label>
+          <button
+            onClick={generateNewRecommendations}
+            className="generate-button"
+            disabled={loading}
+          >
+            Generate New Recommendations
+          </button>
+        </div>
       </div>
 
       {error && <div className="error-message">{error}</div>}
 
       <div className="games-grid">
-        {recommendations.map((rec) => (
-          <div key={rec.recommendation_id} className="game-card">
-            <h3>{rec.title}</h3>
-            <p>Platform: {rec.platform}</p>
-            <p>Publisher: {rec.publisher}</p>
-            <p>Rating: {rec.average_rating?.toFixed(1) || "No ratings"}</p>
-            {rec.reason && (
-              <p className="recommendation-reason">Why: {rec.reason}</p>
-            )}
-            <button onClick={() => handleAddToWishlist(rec.game_id)}>
-              Add to Wishlist
-            </button>
-          </div>
-        ))}
+        {recommendations
+          .filter((rec) => rec !== null && rec.title) // Filter out null/invalid recommendations
+          .map((rec) => (
+            <div key={rec.recommendation_id} className="game-card">
+              <h3>{rec.title}</h3>
+              <p>Platform: {rec.platform}</p>
+              <p>Publisher: {rec.publisher}</p>
+              <p>Rating: {formatRating(rec.average_rating)}</p>
+              {rec.reason && (
+                <p className="recommendation-reason">Why: {rec.reason}</p>
+              )}
+              <button onClick={() => handleAddToWishlist(rec.game_id)}>
+                Add to Wishlist
+              </button>
+            </div>
+          ))}
       </div>
     </div>
   );

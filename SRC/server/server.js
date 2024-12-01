@@ -531,18 +531,22 @@ app.delete("/admin/users/:userId", (req, res) => {
 // get stored recommendations
 app.get("/recommendations/:userId/stored", async (req, res) => {
   const userId = req.params.userId;
+  const minRating = req.query.minRating || 0;
 
   const query = `
-    SELECT r.recommendation_id, r.reason, v.*, AVG(rt.score) as average_rating
+    SELECT r.recommendation_id, r.reason, v.*, 
+           COALESCE(AVG(rt.score), 0) as average_rating
     FROM Recommendation r
     JOIN VideoGame v ON r.game_id = v.game_id
     LEFT JOIN Rating rt ON v.game_id = rt.game_id
     WHERE r.user_id = ?
-    GROUP BY r.recommendation_id, r.reason, v.game_id`;
+    GROUP BY r.recommendation_id, r.reason, v.game_id, v.title, v.platform, v.publisher, v.release_date
+    HAVING COALESCE(AVG(rt.score), 0) >= ?
+    ORDER BY average_rating DESC`;
 
   try {
     const results = await new Promise((resolve, reject) => {
-      connection.query(query, [userId], (err, results) => {
+      connection.query(query, [userId, minRating], (err, results) => {
         if (err) reject(err);
         else resolve(results);
       });
@@ -648,31 +652,129 @@ app.post("/recommendations/:userId/generate", async (req, res) => {
     const insertPromises = recommendations
       .map(async (rec) => {
         const game = allGames.find((g) => g.title === rec.title);
-        if (game) {
-          const insertQuery = `
-          INSERT INTO Recommendation 
-          (recommendation_id, user_id, game_id, reason) 
-          VALUES (?, ?, ?, ?)`;
+        if (!game) return null; // Explicitly return null if game not found
 
-          return new Promise((resolve, reject) => {
-            connection.query(
-              insertQuery,
-              [nextId++, userId, game.game_id, rec.reason],
-              (err, results) => {
-                if (err) reject(err);
-                else resolve({ ...game, reason: rec.reason });
+        const insertQuery = `
+    INSERT INTO Recommendation 
+    (recommendation_id, user_id, game_id, reason) 
+    VALUES (?, ?, ?, ?)`;
+
+        return new Promise((resolve, reject) => {
+          connection.query(
+            insertQuery,
+            [nextId++, userId, game.game_id, rec.reason],
+            (err, results) => {
+              if (err) {
+                console.error("Error inserting recommendation:", err);
+                resolve(null); // Return null on error
+              } else {
+                resolve({ ...game, reason: rec.reason });
               }
-            );
-          });
-        }
+            }
+          );
+        });
       })
-      .filter(Boolean);
+      .filter((p) => p !== null); // Filter out null promises
 
-    const storedRecommendations = await Promise.all(insertPromises);
+    const storedRecommendations = (await Promise.all(insertPromises)).filter(
+      (rec) => rec !== null
+    ); // Filter out null results
     res.json(storedRecommendations);
   } catch (err) {
     console.error("Error generating recommendations:", err);
     res.status(500).send("Error generating recommendations");
+  }
+});
+
+// endpoint to add or update a game rating
+app.post("/rating/:userId/:gameId", async (req, res) => {
+  const { userId, gameId } = req.params;
+  const { score, review } = req.body;
+  const ratingDate = new Date().toISOString().slice(0, 10); // YYYY-MM-DD format
+
+  try {
+    // Get the maximum rating_id
+    const maxIdQuery = "SELECT MAX(rating_id) as max_id FROM Rating";
+    const maxId = await new Promise((resolve, reject) => {
+      connection.query(maxIdQuery, (err, results) => {
+        if (err) reject(err);
+        else resolve(results[0].max_id || 0);
+      });
+    });
+
+    // Check if rating already exists
+    const checkQuery =
+      "SELECT rating_id FROM Rating WHERE user_id = ? AND game_id = ?";
+    const existingRating = await new Promise((resolve, reject) => {
+      connection.query(checkQuery, [userId, gameId], (err, results) => {
+        if (err) reject(err);
+        else resolve(results[0]);
+      });
+    });
+
+    if (existingRating) {
+      // Update existing rating
+      const updateQuery =
+        "UPDATE Rating SET score = ?, review = ?, rating_date = ? WHERE rating_id = ?";
+      await new Promise((resolve, reject) => {
+        connection.query(
+          updateQuery,
+          [score, review, ratingDate, existingRating.rating_id],
+          (err) => {
+            if (err) reject(err);
+            else resolve();
+          }
+        );
+      });
+      res.status(200).send("Rating updated successfully");
+    } else {
+      // Insert new rating
+      const insertQuery =
+        "INSERT INTO Rating (rating_id, user_id, game_id, score, review, rating_date) VALUES (?, ?, ?, ?, ?, ?)";
+      await new Promise((resolve, reject) => {
+        connection.query(
+          insertQuery,
+          [maxId + 1, userId, gameId, score, review, ratingDate],
+          (err) => {
+            if (err) reject(err);
+            else resolve();
+          }
+        );
+      });
+      res.status(201).send("Rating added successfully");
+    }
+  } catch (err) {
+    console.error("Error managing rating:", err);
+    res.status(500).send("Error managing rating");
+  }
+});
+
+// endpoint to get all ratings for a game
+app.get("/ratings/game/:gameId", async (req, res) => {
+  const { gameId } = req.params;
+  const query = `
+    SELECT 
+      r.rating_id,
+      r.score,
+      r.review,
+      r.rating_date,
+      u.username
+    FROM Rating r
+    JOIN User u ON r.user_id = u.user_id
+    WHERE r.game_id = ?
+    ORDER BY r.rating_date DESC`;
+
+  try {
+    const results = await new Promise((resolve, reject) => {
+      connection.query(query, [gameId], (err, results) => {
+        if (err) reject(err);
+        else resolve(results);
+      });
+    });
+    res.json(results);
+  } catch (err) {
+    console.error("Error fetching game ratings:", err);
+    res.status(500).send("Error fetching game ratings");
   }
 });
 
