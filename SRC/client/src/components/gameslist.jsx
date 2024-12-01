@@ -30,8 +30,8 @@ export function GamesList({ userId, onAddToWishlist }) {
           axios.get("http://localhost:3000/videogame/popular"),
           axios.get("http://localhost:3000/videogame/all"),
         ]);
-        setPopularGames(popularResponse.data);
-        setAllGames(allResponse.data.slice(0, 20));
+        setPopularGames(popularResponse.data.slice(0, 6));
+        setAllGames(allResponse.data);
       } catch (err) {
         setError("Failed to fetch games");
       }

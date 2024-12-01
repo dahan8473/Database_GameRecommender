@@ -9,11 +9,15 @@ export function Activity({ userId }) {
   useEffect(() => {
     const fetchActivity = async () => {
       try {
+        if (!userId) {
+          setLoading(false);
+          return; // Don't fetch if userId is null
+        }
+
         setLoading(true);
         const response = await axios.get(
           `http://localhost:3000/users/${userId}/activity`
         );
-
         // Check if user has any activity
         if (
           response.data.total_ratings === 0 &&
@@ -41,7 +45,7 @@ export function Activity({ userId }) {
 
   if (loading) return <div>Loading activity...</div>;
   if (error) return <div className="error-message">{error}</div>;
-  if (!activity) {
+  if (!activity || !userId) {
     return (
       <div className="activity-container">
         <div className="welcome-message">

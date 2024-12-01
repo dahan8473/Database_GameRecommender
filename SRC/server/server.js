@@ -195,7 +195,7 @@ app.put("/users/:userId", (req, res) => {
   });
 });
 
-// endpoint to show all user's activity, shows a summary of a user's ratings and wishlist contributions
+// endpoint to show all user's activity
 app.get("/users/:userId/activity", (req, res) => {
   const userId = req.params.userId;
 
@@ -243,11 +243,12 @@ app.get("/users/:userId/activity", (req, res) => {
       }),
     ])
       .then(([ratingStats, wishlistStats]) => {
+        // Create activity summary with default values for new users
         const activitySummary = {
           user_id: userId,
           username: userResults[0].username,
           total_ratings: ratingStats.total_ratings || 0,
-          average_rating: ratingStats.average_rating || 0,
+          average_rating: ratingStats.average_rating || null,
           total_wishlist_items: wishlistStats.total_wishlist || 0,
         };
         res.status(200).json(activitySummary);
