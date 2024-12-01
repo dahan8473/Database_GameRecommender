@@ -29,7 +29,7 @@ export function GamesList({ userId, onAddToWishlist }) {
       });
       onAddToWishlist();
     } catch (err) {
-      setError("Failed to add game to wishlist");
+      setError("Game is Already in Wishlist");
     }
   };
 

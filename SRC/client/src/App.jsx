@@ -4,6 +4,8 @@ import { Register } from "./components/register";
 import { Login } from "./components/login";
 import { GamesList } from "./components/gameslist";
 import { Wishlist } from "./components/wishlist";
+import { Profile } from "./components/profile";
+import { Recommendations } from "./components/recommendations";
 import "./App.css";
 
 function App() {
@@ -24,11 +26,9 @@ function App() {
     setUserId(null);
   };
 
-  // At the top of your component, add state:
   const [authTab, setAuthTab] = useState("login");
   const [mainTab, setMainTab] = useState("games");
 
-  // Update the JSX:
   return (
     <div className="app-container">
       <header>
@@ -40,6 +40,7 @@ function App() {
         )}
       </header>
 
+      {/* Tabs for when a user isn't logged in */}
       <div style={{ display: isLoggedIn ? "none" : "block" }}>
         <Tabs.Root
           value={authTab}
@@ -61,6 +62,7 @@ function App() {
         </Tabs.Root>
       </div>
 
+      {/* Tabs for when a user is logged in */}
       <div style={{ display: isLoggedIn ? "block" : "none" }}>
         <Tabs.Root
           value={mainTab}
@@ -70,6 +72,8 @@ function App() {
           <Tabs.List className="main-tabs">
             <Tabs.Trigger value="games">Games</Tabs.Trigger>
             <Tabs.Trigger value="wishlist">My Wishlist</Tabs.Trigger>
+            <Tabs.Trigger value="recommendations">Recommendations</Tabs.Trigger>
+            <Tabs.Trigger value="profile">Profile</Tabs.Trigger>
           </Tabs.List>
 
           <Tabs.Content value="games">
@@ -77,6 +81,12 @@ function App() {
           </Tabs.Content>
           <Tabs.Content value="wishlist">
             <Wishlist userId={userId} />
+          </Tabs.Content>
+          <Tabs.Content value="recommendations">
+            <Recommendations userId={userId} />
+          </Tabs.Content>
+          <Tabs.Content value="profile">
+            <Profile userId={userId} />
           </Tabs.Content>
         </Tabs.Root>
       </div>

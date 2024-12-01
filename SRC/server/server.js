@@ -2,9 +2,11 @@ const mysql = require("mysql2");
 const cors = require("cors");
 const express = require("express");
 const path = require("path");
+const OpenAI = require("openai");
 const app = express();
 app.use(cors());
 app.use(express.json());
+require("dotenv").config();
 
 // i know there's a typo in the db name, i cant change it locally so fuck it
 const connection = mysql.createConnection({
@@ -12,6 +14,12 @@ const connection = mysql.createConnection({
   user: "root",
   password: "password",
   database: "videogamereccomender",
+});
+
+// connect to openrouter
+const openrouter = new OpenAI({
+  baseURL: "https://openrouter.ai/api/v1",
+  apiKey: process.env.OPEN_ROUTER_API_KEY,
 });
 
 connection.connect((err) => {
@@ -464,6 +472,154 @@ app.delete("/admin/users/:userId", (req, res) => {
       console.error("Error checking admin status:", err);
       res.status(500).send("Error checking admin status");
     });
+});
+
+// Get stored recommendations
+app.get("/recommendations/:userId/stored", async (req, res) => {
+  const userId = req.params.userId;
+
+  const query = `
+    SELECT r.recommendation_id, r.reason, v.*, AVG(rt.score) as average_rating
+    FROM Recommendation r
+    JOIN VideoGame v ON r.game_id = v.game_id
+    LEFT JOIN Rating rt ON v.game_id = rt.game_id
+    WHERE r.user_id = ?
+    GROUP BY r.recommendation_id, r.reason, v.game_id`;
+
+  try {
+    const results = await new Promise((resolve, reject) => {
+      connection.query(query, [userId], (err, results) => {
+        if (err) reject(err);
+        else resolve(results);
+      });
+    });
+
+    res.json(results);
+  } catch (err) {
+    console.error("Error fetching stored recommendations:", err);
+    res.status(500).send("Error fetching recommendations");
+  }
+});
+
+// Generate new recommendations
+app.post("/recommendations/:userId/generate", async (req, res) => {
+  const userId = req.params.userId;
+
+  try {
+    // Get user's wishlist games
+    const wishlistQuery = `
+      SELECT v.* 
+      FROM VideoGame v
+      INNER JOIN Wishlist w ON v.game_id = w.game_id
+      WHERE w.user_id = ?`;
+
+    const allGamesQuery = `
+      SELECT v.*, AVG(r.score) as average_rating
+      FROM VideoGame v
+      LEFT JOIN Rating r ON v.game_id = r.game_id
+      WHERE v.game_id NOT IN (
+        SELECT game_id FROM Wishlist WHERE user_id = ?
+      )
+      GROUP BY v.game_id`;
+
+    const [wishlistGames, allGames] = await Promise.all([
+      new Promise((resolve, reject) => {
+        connection.query(wishlistQuery, [userId], (err, results) => {
+          if (err) reject(err);
+          else resolve(results);
+        });
+      }),
+      new Promise((resolve, reject) => {
+        connection.query(allGamesQuery, [userId], (err, results) => {
+          if (err) reject(err);
+          else resolve(results);
+        });
+      }),
+    ]);
+
+    // Get AI recommendations using existing logic
+    const prompt = `As a video game recommendation system, analyze these wishlist games:
+      ${JSON.stringify(
+        wishlistGames.map((g) => ({
+          title: g.title,
+          platform: g.platform,
+          publisher: g.publisher,
+        }))
+      )}
+      
+      From this list of available games:
+      ${JSON.stringify(
+        allGames.map((g) => ({
+          title: g.title,
+          platform: g.platform,
+          publisher: g.publisher,
+        }))
+      )}
+      
+      Return EXACTLY 5 recommendations in this JSON format, nothing else:
+      [
+        {"title": "Exact Game Title", "reason": "Short reason for recommendation"},
+        {"title": "Exact Game Title", "reason": "Short reason for recommendation"}
+      ]`;
+
+    const completion = await openrouter.chat.completions.create({
+      model: "meta-llama/llama-3.2-3b-instruct:free",
+      messages: [
+        {
+          role: "system",
+          content:
+            "You are a JSON-only response engine. Always respond with valid JSON arrays containing objects with 'title' and 'reason' fields.",
+        },
+        {
+          role: "user",
+          content: prompt,
+        },
+      ],
+      temperature: 0.7,
+    });
+    let recommendations = JSON.parse(completion.choices[0].message.content);
+
+    // Get max recommendation_id
+    const maxIdQuery =
+      "SELECT MAX(recommendation_id) as max_id FROM Recommendation";
+    const maxId = await new Promise((resolve, reject) => {
+      connection.query(maxIdQuery, (err, results) => {
+        if (err) reject(err);
+        else resolve(results[0].max_id || 0);
+      });
+    });
+
+    // Store new recommendations
+    let nextId = maxId + 1;
+    const insertPromises = recommendations
+      .map(async (rec) => {
+        const game = allGames.find((g) => g.title === rec.title);
+        if (game) {
+          const insertQuery = `
+          INSERT INTO Recommendation 
+          (recommendation_id, user_id, game_id, reason) 
+          VALUES (?, ?, ?, ?)`;
+
+          return new Promise((resolve, reject) => {
+            connection.query(
+              insertQuery,
+              [nextId++, userId, game.game_id, rec.reason],
+              (err, results) => {
+                if (err) reject(err);
+                else resolve({ ...game, reason: rec.reason });
+              }
+            );
+          });
+        }
+      })
+      .filter(Boolean);
+
+    const storedRecommendations = await Promise.all(insertPromises);
+    res.json(storedRecommendations);
+  } catch (err) {
+    console.error("Error generating recommendations:", err);
+    res.status(500).send("Error generating recommendations");
+  }
 });
 
 app.get("*", (req, res) => {
