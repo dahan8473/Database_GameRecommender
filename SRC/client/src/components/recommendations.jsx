@@ -117,38 +117,61 @@ export function Recommendations({ userId }) {
 
       {error && <div className="error-message">{error}</div>}
 
-      <div className="games-grid">
-        {recommendations
-          .filter((rec) => rec !== null && rec.title)
-          .map((rec) => (
-            <div key={rec.recommendation_id} className="game-card">
-              <h3>{rec.title}</h3>
-              <p>Platform: {rec.platform}</p>
-              <p>Publisher: {rec.publisher}</p>
-              <p>Rating: {formatRating(rec.average_rating)}</p>
-              {rec.reason && (
-                <p className="recommendation-reason">Why: {rec.reason}</p>
-              )}
-              <div className="button-row">
-                <button
-                  onClick={() => handleAddToWishlist(rec.game_id)}
-                  title="Add to Wishlist"
-                >
-                  <i className="fa-solid fa-heart"></i>
-                </button>
-                <button
-                  onClick={() =>
-                    handleDeleteRecommendation(rec.recommendation_id)
-                  }
-                  title="Remove Recommendation"
-                  className="delete-rec-button"
-                >
-                  <i className="fa-solid fa-times"></i>
-                </button>
+      {!loading && recommendations.length === 0 ? (
+        <div className="welcome-message">
+          <i className="fa-solid fa-robot welcome-icon"></i>
+          <h2>No Recommendations Yet</h2>
+          <p>Add games to your wishlist to get personalized recommendations!</p>
+          <div className="suggested-actions">
+            <p>Follow these steps:</p>
+            <ul>
+              <li>
+                <i className="fa-solid fa-heart"></i> Add games to your wishlist
+              </li>
+              <li>
+                <i className="fa-solid fa-star"></i> Rate games you've played
+              </li>
+              <li>
+                <i className="fa-solid fa-wand-magic-sparkles"></i> Click
+                "Generate New Recommendations"
+              </li>
+            </ul>
+          </div>
+        </div>
+      ) : (
+        <div className="games-grid">
+          {recommendations
+            .filter((rec) => rec !== null && rec.title)
+            .map((rec) => (
+              <div key={rec.recommendation_id} className="game-card">
+                <h3>{rec.title}</h3>
+                <p>Platform: {rec.platform}</p>
+                <p>Publisher: {rec.publisher}</p>
+                <p>Rating: {formatRating(rec.average_rating)}</p>
+                {rec.reason && (
+                  <p className="recommendation-reason">Why: {rec.reason}</p>
+                )}
+                <div className="button-row">
+                  <button
+                    onClick={() => handleAddToWishlist(rec.game_id)}
+                    title="Add to Wishlist"
+                  >
+                    <i className="fa-solid fa-heart"></i>
+                  </button>
+                  <button
+                    onClick={() =>
+                      handleDeleteRecommendation(rec.recommendation_id)
+                    }
+                    title="Remove Recommendation"
+                    className="delete-rec-button"
+                  >
+                    <i className="fa-solid fa-times"></i>
+                  </button>
+                </div>
               </div>
-            </div>
-          ))}
-      </div>
+            ))}
+        </div>
+      )}
     </div>
   );
 }

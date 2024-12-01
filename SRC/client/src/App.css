@@ -741,3 +741,55 @@ header h1 {
   animation: flicker 2s infinite alternate;
   margin: 0; /* Add this to remove default margin */
 }
+
+.welcome-message {
+  text-align: center;
+  padding: 2rem;
+}
+
+.welcome-message .welcome-icon {
+  font-size: 3rem;
+  color: #646cff;
+  margin-bottom: 1.5rem;
+  animation: float 3s ease-in-out infinite;
+}
+
+.welcome-message h2 {
+  margin-bottom: 1rem;
+  font-family: "Press Start 2P", cursive;
+  font-size: 1.5rem;
+  color: #646cff;
+}
+
+.welcome-message p {
+  color: #888;
+  margin-bottom: 2rem;
+}
+
+.suggested-actions {
+  text-align: left;
+  max-width: 400px;
+  margin: 0 auto;
+  padding: 1.5rem;
+  background: #1a1a1a;
+  border-radius: 8px;
+  border: 1px solid #333;
+}
+
+.suggested-actions ul {
+  list-style: none;
+  padding: 0;
+  margin-top: 1rem;
+}
+
+.suggested-actions li {
+  margin: 1rem 0;
+  color: #e1e1e1;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.suggested-actions i {
+  color: #646cff;
+}

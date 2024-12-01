@@ -9,10 +9,20 @@ export function Activity({ userId }) {
   useEffect(() => {
     const fetchActivity = async () => {
       try {
+        setLoading(true);
         const response = await axios.get(
           `http://localhost:3000/users/${userId}/activity`
         );
-        setActivity(response.data);
+
+        // Check if user has any activity
+        if (
+          response.data.total_ratings === 0 &&
+          response.data.total_wishlist_items === 0
+        ) {
+          setActivity(null);
+        } else {
+          setActivity(response.data);
+        }
         setLoading(false);
       } catch (err) {
         setError("Failed to fetch activity data");
@@ -31,7 +41,36 @@ export function Activity({ userId }) {
 
   if (loading) return <div>Loading activity...</div>;
   if (error) return <div className="error-message">{error}</div>;
-  if (!activity) return <div>No activity found</div>;
+  if (!activity) {
+    return (
+      <div className="activity-container">
+        <div className="welcome-message">
+          <i className="fa-solid fa-gamepad welcome-icon"></i>
+          <h2>Welcome to Gamefolio!</h2>
+          <p>
+            Start rating games and adding them to your wishlist to see your
+            activity stats here.
+          </p>
+          <div className="suggested-actions">
+            <p>Try these actions to get started:</p>
+            <ul>
+              <li>
+                <i className="fa-solid fa-star"></i> Rate some games you've
+                played
+              </li>
+              <li>
+                <i className="fa-solid fa-heart"></i> Add games to your wishlist
+              </li>
+              <li>
+                <i className="fa-solid fa-wand-magic-sparkles"></i> Get
+                personalized recommendations
+              </li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="activity-container">

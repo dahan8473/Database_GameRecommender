@@ -61,35 +61,60 @@ export function Wishlist({ userId }) {
     <div className="wishlist-container">
       <h2>My Wishlist</h2>
       {error && <div className="error-message">{error}</div>}
-      <div className="wishlist-grid">
-        {wishlist.map((item) => (
-          <div key={item.game_id} className="wishlist-item">
-            {games[item.game_id] ? (
-              <>
-                <h3>{games[item.game_id].title}</h3>
-                <p>Platform: {games[item.game_id].platform}</p>
-                <p>Publisher: {games[item.game_id].publisher}</p>
-                <p>
-                  Release Date:{" "}
-                  {new Date(
-                    games[item.game_id].release_date
-                  ).toLocaleDateString()}
-                </p>
-                {item.comments && <p>Notes: {item.comments}</p>}
-                <button
-                  onClick={() => handleDeleteFromWishlist(item.game_id)}
-                  className="delete-button"
-                  title="Remove from Wishlist"
-                >
-                  <i className="fas fa-trash"></i>
-                </button>
-              </>
-            ) : (
-              <p>Loading game details...</p>
-            )}
+      {wishlist.length === 0 ? (
+        <div className="welcome-message">
+          <i className="fa-solid fa-heart welcome-icon"></i>
+          <h2>Your Wishlist is Empty</h2>
+          <p>Start adding games you're interested in to your wishlist!</p>
+          <div className="suggested-actions">
+            <p>Here's how to get started:</p>
+            <ul>
+              <li>
+                <i className="fa-solid fa-magnifying-glass"></i> Browse the
+                games list
+              </li>
+              <li>
+                <i className="fa-solid fa-heart"></i> Click the heart icon to
+                add games
+              </li>
+              <li>
+                <i className="fa-solid fa-wand-magic-sparkles"></i> Get
+                personalized recommendations
+              </li>
+            </ul>
           </div>
-        ))}
-      </div>
+        </div>
+      ) : (
+        <div className="wishlist-grid">
+          {wishlist.map((item) => (
+            <div key={item.game_id} className="wishlist-item">
+              {games[item.game_id] ? (
+                <>
+                  <h3>{games[item.game_id].title}</h3>
+                  <p>Platform: {games[item.game_id].platform}</p>
+                  <p>Publisher: {games[item.game_id].publisher}</p>
+                  <p>
+                    Release Date:{" "}
+                    {new Date(
+                      games[item.game_id].release_date
+                    ).toLocaleDateString()}
+                  </p>
+                  {item.comments && <p>Notes: {item.comments}</p>}
+                  <button
+                    onClick={() => handleDeleteFromWishlist(item.game_id)}
+                    className="delete-button"
+                    title="Remove from Wishlist"
+                  >
+                    <i className="fas fa-trash"></i>
+                  </button>
+                </>
+              ) : (
+                <p>Loading game details...</p>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
