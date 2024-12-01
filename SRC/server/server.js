@@ -564,21 +564,33 @@ app.post("/recommendations/:userId/generate", async (req, res) => {
   const userId = req.params.userId;
 
   try {
-    // Get user's wishlist games
+    // Get user's wishlist with genres and ratings
     const wishlistQuery = `
-      SELECT v.* 
+      SELECT v.*, AVG(r.score) as average_rating,
+      COUNT(r.rating_id) as rating_count
       FROM VideoGame v
-      INNER JOIN Wishlist w ON v.game_id = w.game_id
-      WHERE w.user_id = ?`;
+      JOIN Wishlist w ON v.game_id = w.game_id
+      LEFT JOIN Rating r ON v.game_id = r.game_id
+      WHERE w.user_id = ?
+      GROUP BY v.game_id`;
 
+    // Get all available games to recommend from
     const allGamesQuery = `
-      SELECT v.*, AVG(r.score) as average_rating
+      SELECT v.*, 
+      AVG(r.score) as average_rating,
+      COUNT(r.rating_id) as rating_count
       FROM VideoGame v
       LEFT JOIN Rating r ON v.game_id = r.game_id
       WHERE v.game_id NOT IN (
         SELECT game_id FROM Wishlist WHERE user_id = ?
       )
-      GROUP BY v.game_id`;
+      AND v.game_id NOT IN (
+        SELECT game_id FROM Recommendation WHERE user_id = ?
+      )
+      GROUP BY v.game_id
+      HAVING average_rating >= 3 OR rating_count = 0
+      ORDER BY RAND()
+      LIMIT 20`;
 
     const [wishlistGames, allGames] = await Promise.all([
       new Promise((resolve, reject) => {
@@ -588,37 +600,43 @@ app.post("/recommendations/:userId/generate", async (req, res) => {
         });
       }),
       new Promise((resolve, reject) => {
-        connection.query(allGamesQuery, [userId], (err, results) => {
+        connection.query(allGamesQuery, [userId, userId], (err, results) => {
           if (err) reject(err);
           else resolve(results);
         });
       }),
     ]);
 
-    // Get AI recommendations using existing logic
-    const prompt = `As a video game recommendation system, analyze these wishlist games:
-      ${JSON.stringify(
-        wishlistGames.map((g) => ({
-          title: g.title,
-          platform: g.platform,
-          publisher: g.publisher,
-        }))
-      )}
-      
-      From this list of available games:
-      ${JSON.stringify(
-        allGames.map((g) => ({
-          title: g.title,
-          platform: g.platform,
-          publisher: g.publisher,
-        }))
-      )}
-      
-      Return EXACTLY 5 recommendations in this JSON format, nothing else:
-      [
-        {"title": "Exact Game Title", "reason": "Short reason for recommendation in relation to games within user wishlist"},
-        {"title": "Exact Game Title", "reason": "Short reason for recommendation in relation to games within user wishlist"}
-      ]`;
+    const prompt = `You are a video game recommendation system. Below are games from user's wishlist and available games to recommend from. You must return ONLY a JSON array with exactly 5 recommendations.
+
+Wishlist games:
+${JSON.stringify(
+  wishlistGames.map((g) => ({
+    title: g.title,
+    platform: g.platform,
+    publisher: g.publisher,
+    rating: g.average_rating,
+  }))
+)}
+
+Available games:
+${JSON.stringify(
+  allGames.map((g) => ({
+    title: g.title,
+    platform: g.platform,
+    publisher: g.publisher,
+    rating: g.average_rating,
+  }))
+)}
+
+Rules:
+1. Match games based on platforms and publishers from wishlist
+2. Consider rating patterns
+3. Ensure variety in recommendations
+4. Use exact titles from available games list
+5. For each recommendation, provide detailed reasoning that references specific games from their wishlist
+6. Each reason should explain why this game matches their interests based on platform, publisher, or style
+7. Return ONLY valid JSON array with 5 items, each containing a title and detailed reason`;
 
     const completion = await openrouter.chat.completions.create({
       model: "meta-llama/llama-3.2-3b-instruct:free",
@@ -626,7 +644,10 @@ app.post("/recommendations/:userId/generate", async (req, res) => {
         {
           role: "system",
           content:
-            "You are a JSON-only response engine. Always respond with valid JSON arrays containing objects with 'title' and 'reason' fields.",
+            "You are a video game recommendation system that MUST ONLY return a JSON array of exactly 5 recommendations. " +
+            "Each recommendation must have exactly two fields: 'title' (matching a game title from the available list) and 'reason' (a detailed explanation referencing games from their wishlist). " +
+            "Your entire response must be valid JSON. Do not include any other text or explanations outside the JSON structure. " +
+            'Example format: [{"title":"Game Name","reason":"Recommended because you enjoyed [specific game] - this game shares similar [specific features]"}]',
         },
         {
           role: "user",
@@ -635,6 +656,7 @@ app.post("/recommendations/:userId/generate", async (req, res) => {
       ],
       temperature: 0.7,
     });
+
     let recommendations = JSON.parse(completion.choices[0].message.content);
 
     // Get max recommendation_id
@@ -652,12 +674,12 @@ app.post("/recommendations/:userId/generate", async (req, res) => {
     const insertPromises = recommendations
       .map(async (rec) => {
         const game = allGames.find((g) => g.title === rec.title);
-        if (!game) return null; // Explicitly return null if game not found
+        if (!game) return null;
 
         const insertQuery = `
-    INSERT INTO Recommendation 
-    (recommendation_id, user_id, game_id, reason) 
-    VALUES (?, ?, ?, ?)`;
+          INSERT INTO Recommendation 
+          (recommendation_id, user_id, game_id, reason) 
+          VALUES (?, ?, ?, ?)`;
 
         return new Promise((resolve, reject) => {
           connection.query(
@@ -666,7 +688,7 @@ app.post("/recommendations/:userId/generate", async (req, res) => {
             (err, results) => {
               if (err) {
                 console.error("Error inserting recommendation:", err);
-                resolve(null); // Return null on error
+                resolve(null);
               } else {
                 resolve({ ...game, reason: rec.reason });
               }
@@ -674,15 +696,35 @@ app.post("/recommendations/:userId/generate", async (req, res) => {
           );
         });
       })
-      .filter((p) => p !== null); // Filter out null promises
+      .filter((p) => p !== null);
 
     const storedRecommendations = (await Promise.all(insertPromises)).filter(
       (rec) => rec !== null
-    ); // Filter out null results
+    );
     res.json(storedRecommendations);
   } catch (err) {
     console.error("Error generating recommendations:", err);
     res.status(500).send("Error generating recommendations");
+  }
+});
+
+// endpoint to delete a recommendation
+app.delete("/recommendations/:userId/:recommendationId", async (req, res) => {
+  const { userId, recommendationId } = req.params;
+
+  const query =
+    "DELETE FROM Recommendation WHERE recommendation_id = ? AND user_id = ?";
+  try {
+    await new Promise((resolve, reject) => {
+      connection.query(query, [recommendationId, userId], (err, results) => {
+        if (err) reject(err);
+        else resolve(results);
+      });
+    });
+    res.status(200).send("Recommendation deleted successfully");
+  } catch (err) {
+    console.error("Error deleting recommendation:", err);
+    res.status(500).send("Error deleting recommendation");
   }
 });
 

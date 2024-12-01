@@ -41,6 +41,22 @@ export function Recommendations({ userId }) {
     }
   };
 
+  const handleDeleteRecommendation = async (recommendationId) => {
+    try {
+      await axios.delete(
+        `http://localhost:3000/recommendations/${userId}/${recommendationId}`
+      );
+      setRecommendations(
+        recommendations.filter(
+          (rec) => rec.recommendation_id !== recommendationId
+        )
+      );
+      toast.success("Recommendation removed");
+    } catch (err) {
+      toast.error("Failed to remove recommendation");
+    }
+  };
+
   const handleAddToWishlist = async (gameId) => {
     try {
       await axios.post(`http://localhost:3000/wishlist/${userId}`, {
@@ -103,7 +119,7 @@ export function Recommendations({ userId }) {
 
       <div className="games-grid">
         {recommendations
-          .filter((rec) => rec !== null && rec.title) // Filter out null/invalid recommendations
+          .filter((rec) => rec !== null && rec.title)
           .map((rec) => (
             <div key={rec.recommendation_id} className="game-card">
               <h3>{rec.title}</h3>
@@ -113,9 +129,23 @@ export function Recommendations({ userId }) {
               {rec.reason && (
                 <p className="recommendation-reason">Why: {rec.reason}</p>
               )}
-              <button onClick={() => handleAddToWishlist(rec.game_id)}>
-                Add to Wishlist
-              </button>
+              <div className="button-row">
+                <button
+                  onClick={() => handleAddToWishlist(rec.game_id)}
+                  title="Add to Wishlist"
+                >
+                  <i className="fa-solid fa-heart"></i>
+                </button>
+                <button
+                  onClick={() =>
+                    handleDeleteRecommendation(rec.recommendation_id)
+                  }
+                  title="Remove Recommendation"
+                  className="delete-rec-button"
+                >
+                  <i className="fa-solid fa-times"></i>
+                </button>
+              </div>
             </div>
           ))}
       </div>

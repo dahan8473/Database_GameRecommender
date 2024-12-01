@@ -5,15 +5,21 @@ import axios from "axios";
 export function Register({ onRegisterSuccess }) {
   const [error, setError] = useState("");
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    const formData = new FormData(e.target);
+  const handleSubmit = async (event) => {
+    event.preventDefault();
+    const formData = new FormData(event.currentTarget);
+    const age = parseInt(formData.get("age"));
+
+    if (age < 0) {
+      setError("Age cannot be negative");
+      return;
+    }
 
     try {
       const response = await axios.post("http://localhost:3000/register", {
         username: formData.get("username"),
         password: formData.get("password"),
-        age: parseInt(formData.get("age")),
+        age: age,
       });
       onRegisterSuccess();
     } catch (err) {
@@ -37,9 +43,8 @@ export function Register({ onRegisterSuccess }) {
 
       <Form.Field name="age" className="form-field">
         <Form.Label>Age</Form.Label>
-        <Form.Control type="number" required />
+        <Form.Control type="number" min="0" required />
       </Form.Field>
-
       <Form.Submit className="submit-button">Create Account</Form.Submit>
 
       {error && <div className="error-message">{error}</div>}

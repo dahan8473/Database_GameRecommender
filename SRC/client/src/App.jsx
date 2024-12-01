@@ -6,6 +6,7 @@ import { GamesList } from "./components/gameslist";
 import { Wishlist } from "./components/wishlist";
 import { Profile } from "./components/profile";
 import { Recommendations } from "./components/recommendations";
+import { Activity } from "./components/activity";
 import { Toaster } from "react-hot-toast";
 
 import "./App.css";
@@ -35,7 +36,14 @@ function App() {
     <div className="app-container">
       <Toaster position="bottom-right" />
       <header>
-        <h1>Video Game Recommender</h1>
+        <div className="title-container">
+          <img
+            src="/src/assets/space-invaders.svg"
+            alt="Space Invader"
+            className="game-logo"
+          />
+          <h1 className="game-title">Gamefolio</h1>
+        </div>
         {isLoggedIn && (
           <button onClick={handleLogout} className="logout-button">
             Logout
@@ -76,6 +84,7 @@ function App() {
             <Tabs.Trigger value="games">Games</Tabs.Trigger>
             <Tabs.Trigger value="wishlist">My Wishlist</Tabs.Trigger>
             <Tabs.Trigger value="recommendations">Recommendations</Tabs.Trigger>
+            <Tabs.Trigger value="activity">Activity</Tabs.Trigger>
             <Tabs.Trigger value="profile">Profile</Tabs.Trigger>
           </Tabs.List>
 
@@ -87,6 +96,9 @@ function App() {
           </Tabs.Content>
           <Tabs.Content value="recommendations">
             <Recommendations userId={userId} />
+          </Tabs.Content>
+          <Tabs.Content value="activity">
+            <Activity userId={userId} />
           </Tabs.Content>
           <Tabs.Content value="profile">
             <Profile userId={userId} />
