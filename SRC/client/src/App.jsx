@@ -7,21 +7,25 @@ import { Wishlist } from "./components/wishlist";
 import { Profile } from "./components/profile";
 import { Recommendations } from "./components/recommendations";
 import { Activity } from "./components/activity";
+import { AdminDashboard } from "./components/adminDashboard";
+import { Hero } from "./components/hero";
 import { Toaster } from "react-hot-toast";
-
 import "./App.css";
 
 function App() {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [userId, setUserId] = useState(null);
+  const [isAdmin, setIsAdmin] = useState(false);
 
   const handleRegisterSuccess = () => {
     setIsLoggedIn(true);
   };
 
-  const handleLoginSuccess = (userId) => {
+  const handleLoginSuccess = (userId, isAdmin) => {
     setIsLoggedIn(true);
     setUserId(userId);
+    setIsAdmin(isAdmin);
+    console.log(isAdmin);
   };
 
   const handleLogout = () => {
@@ -45,11 +49,18 @@ function App() {
           <h1 className="game-title">Gamefolio</h1>
         </div>
         {isLoggedIn && (
-          <button onClick={handleLogout} className="logout-button">
-            Logout
+          <button
+            onClick={handleLogout}
+            className="logout-button"
+            title="Logout"
+          >
+            <i className="fa-solid fa-right-from-bracket"></i>
           </button>
         )}
       </header>
+
+      {/* Show Hero only when not logged in */}
+      {!isLoggedIn && <Hero />}
 
       {/* Tabs for when a user isn't logged in */}
       <div style={{ display: isLoggedIn ? "none" : "block" }}>
@@ -86,6 +97,9 @@ function App() {
             <Tabs.Trigger value="recommendations">Recommendations</Tabs.Trigger>
             <Tabs.Trigger value="activity">Activity</Tabs.Trigger>
             <Tabs.Trigger value="profile">Profile</Tabs.Trigger>
+            {isAdmin && (
+              <Tabs.Trigger value="admin">Admin Dashboard</Tabs.Trigger>
+            )}
           </Tabs.List>
 
           <Tabs.Content value="games">
@@ -103,6 +117,11 @@ function App() {
           <Tabs.Content value="profile">
             <Profile userId={userId} />
           </Tabs.Content>
+          {isAdmin && (
+            <Tabs.Content value="admin">
+              <AdminDashboard adminId={userId} />
+            </Tabs.Content>
+          )}
         </Tabs.Root>
       </div>
     </div>

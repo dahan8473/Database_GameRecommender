@@ -16,7 +16,14 @@ export function Login({ onLoginSuccess }) {
       });
 
       if (response.data.success) {
-        onLoginSuccess(response.data.user_id);
+        const userId = response.data.user_id;
+        console.log(userId);
+        // Check if user is admin
+        const adminCheck = await axios.get(
+          `http://localhost:3000/admin/check/${userId}`
+        );
+        console.log(adminCheck.data.isAdmin);
+        onLoginSuccess(userId, adminCheck.data.isAdmin);
       }
     } catch (err) {
       setError(err.response?.data?.message || "Login failed");

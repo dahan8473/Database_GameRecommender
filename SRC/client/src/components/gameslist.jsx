@@ -22,6 +22,7 @@ export function GamesList({ userId, onAddToWishlist }) {
     ratingScore: 0,
     ratingReview: "",
   });
+  const [refreshTrigger, setRefreshTrigger] = useState(0);
 
   useEffect(() => {
     const fetchGames = async () => {
@@ -37,7 +38,7 @@ export function GamesList({ userId, onAddToWishlist }) {
       }
     };
     fetchGames();
-  }, []);
+  }, [refreshTrigger]); // Add refreshTrigger to dependencies
 
   useEffect(() => {
     const searchGames = async () => {
@@ -91,6 +92,7 @@ export function GamesList({ userId, onAddToWishlist }) {
         ratingScore: 0,
         ratingReview: "",
       }));
+      setRefreshTrigger((prev) => prev + 1); // Trigger refresh
     } catch (err) {
       toast.error("Failed to submit rating");
     }
@@ -175,9 +177,18 @@ export function GamesList({ userId, onAddToWishlist }) {
   const GameCard = ({ game }) => (
     <div className="game-card">
       <h3>{game.title}</h3>
-      <p>Platform: {game.platform}</p>
-      <p>Publisher: {game.publisher}</p>
-      <p>Rating: {formatRating(game.average_rating)}</p>
+      <div className="game-details">
+        <p>
+          <i className="fa-solid fa-gamepad"></i> {game.platform}
+        </p>
+        <p>
+          <i className="fa-solid fa-building"></i> {game.publisher}
+        </p>
+        <p>
+          <i className="fa-solid fa-star"></i>{" "}
+          {formatRating(game.average_rating)}
+        </p>
+      </div>
 
       {activeGame.showRatingForm && activeGame.id === game.game_id && (
         <RatingForm

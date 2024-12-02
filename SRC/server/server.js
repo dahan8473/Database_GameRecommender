@@ -22,6 +22,23 @@ const openrouter = new OpenAI({
   apiKey: process.env.OPEN_ROUTER_API_KEY,
 });
 
+async function isAdmin(user_id) {
+  return new Promise((resolve, reject) => {
+    const query = "SELECT * FROM Admin WHERE admin_id = ?";
+
+    connection.query(query, [user_id], (err, results) => {
+      if (err) {
+        console.error("Error checking admin status:", err.stack);
+        reject(err);
+        return;
+      }
+
+      // If we found a matching admin_id, the user is an admin
+      resolve(results.length > 0);
+    });
+  });
+}
+
 connection.connect((err) => {
   if (err) {
     console.error("Error connecting to MySQL:", err.stack);
@@ -29,24 +46,6 @@ connection.connect((err) => {
   }
   console.log("Connected to MySQL as ID", connection.threadId);
 });
-
-async function isAdmin(user_id) {
-  return new Promise((resolve, reject) => {
-    const query = "SELECT * FROM Admin";
-
-    connection.query(query, (err, results) => {
-      if (err) {
-        console.error("Error checking admin status:", err.stack);
-        reject(err);
-        return;
-      }
-
-      // Check if user_id matches any admin_id in results
-      const isAdminUser = results.some((admin) => admin.admin_id === user_id);
-      resolve(isAdminUser);
-    });
-  });
-}
 
 app.use(express.static(path.join(__dirname, "../client")));
 
@@ -193,6 +192,37 @@ app.put("/users/:userId", (req, res) => {
       res.status(400).send("No fields to update provided");
     }
   });
+});
+
+// endpoint to get all reviews by a user
+app.get("/users/:userId/reviews", async (req, res) => {
+  const { userId } = req.params;
+  const query = `
+    SELECT 
+      r.rating_id,
+      r.score,
+      r.review,
+      r.rating_date,
+      v.title,
+      v.platform,
+      v.publisher
+    FROM Rating r
+    JOIN VideoGame v ON r.game_id = v.game_id
+    WHERE r.user_id = ? AND r.review IS NOT NULL AND r.review != ''
+    ORDER BY r.rating_date DESC`;
+
+  try {
+    const results = await new Promise((resolve, reject) => {
+      connection.query(query, [userId], (err, results) => {
+        if (err) reject(err);
+        else resolve(results);
+      });
+    });
+    res.json(results);
+  } catch (err) {
+    console.error("Error fetching user reviews:", err);
+    res.status(500).send("Error fetching reviews");
+  }
 });
 
 // endpoint to show all user's activity
@@ -527,6 +557,18 @@ app.delete("/admin/users/:userId", (req, res) => {
       console.error("Error checking admin status:", err);
       res.status(500).send("Error checking admin status");
     });
+});
+
+// admin endpoint to check if a user is an admin
+app.get("/admin/check/:userId", async (req, res) => {
+  const userId = req.params.userId;
+  try {
+    const isAdminUser = await isAdmin(userId);
+    res.json({ isAdmin: isAdminUser });
+  } catch (err) {
+    console.error("Error checking admin status:", err);
+    res.status(500).send("Error checking admin status");
+  }
 });
 
 // get stored recommendations

@@ -3,38 +3,41 @@ import axios from "axios";
 
 export function Activity({ userId }) {
   const [activity, setActivity] = useState(null);
+  const [reviews, setReviews] = useState([]);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const fetchActivity = async () => {
+    const fetchData = async () => {
       try {
         if (!userId) {
           setLoading(false);
-          return; // Don't fetch if userId is null
+          return;
         }
 
         setLoading(true);
-        const response = await axios.get(
-          `http://localhost:3000/users/${userId}/activity`
-        );
-        // Check if user has any activity
+        const [activityResponse, reviewsResponse] = await Promise.all([
+          axios.get(`http://localhost:3000/users/${userId}/activity`),
+          axios.get(`http://localhost:3000/users/${userId}/reviews`),
+        ]);
+
         if (
-          response.data.total_ratings === 0 &&
-          response.data.total_wishlist_items === 0
+          activityResponse.data.total_ratings === 0 &&
+          activityResponse.data.total_wishlist_items === 0
         ) {
           setActivity(null);
         } else {
-          setActivity(response.data);
+          setActivity(activityResponse.data);
         }
+        setReviews(reviewsResponse.data);
         setLoading(false);
       } catch (err) {
-        setError("Failed to fetch activity data");
+        setError("Failed to fetch user data");
         setLoading(false);
       }
     };
 
-    fetchActivity();
+    fetchData();
   }, [userId]);
 
   const formatRating = (rating) => {
@@ -100,6 +103,40 @@ export function Activity({ userId }) {
           <h3>Wishlist Items</h3>
           <p>{activity.total_wishlist_items}</p>
         </div>
+      </div>
+      <div className="reviews-section">
+        <h2>My Reviews</h2>
+        {reviews.length > 0 ? (
+          <div className="reviews-grid">
+            {reviews.map((review) => (
+              <div key={review.rating_id} className="review-card">
+                <div className="review-header">
+                  <h3>{review.title}</h3>
+                  <span className="review-score">
+                    <i className="fa-solid fa-star"></i> {review.score}/5
+                  </span>
+                </div>
+                <div className="review-details">
+                  <p className="review-platform">
+                    <i className="fa-solid fa-gamepad"></i> {review.platform}
+                  </p>
+                  <p className="review-publisher">
+                    <i className="fa-solid fa-building"></i> {review.publisher}
+                  </p>
+                  <p className="review-date">
+                    <i className="fa-solid fa-calendar"></i>{" "}
+                    {new Date(review.rating_date).toLocaleDateString()}
+                  </p>
+                </div>
+                <p className="review-text">"{review.review}"</p>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <p className="no-reviews">
+            No reviews yet. Start rating games to see them here!
+          </p>
+        )}
       </div>
     </div>
   );
