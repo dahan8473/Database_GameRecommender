@@ -25,7 +25,6 @@ function App() {
     setIsLoggedIn(true);
     setUserId(userId);
     setIsAdmin(isAdmin);
-    console.log(isAdmin);
   };
 
   const handleLogout = () => {
